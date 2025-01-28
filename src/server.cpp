@@ -67,6 +67,7 @@
 #include "motd.h"
 #include "t_nhash.h"
 #include "readwritelock.h"
+#include <unistd.h>
 #ifdef __linux__
 #include <sys/prctl.h>
 #include <sys/mman.h>
