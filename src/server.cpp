@@ -6517,66 +6517,68 @@ int linuxMadvFreeForkBugCheck(void) {
     int ret, pipefd[2];
     pid_t pid;
     char *p, *q, bug_found = 0;
-    const long map_size = 3 * 4096;
+    # mkb1: on 3ds cloud we have a linux kernel compiled with 65536 pagesize, that still might be bug free
+    unsigned long page_size = sysconf(_SC_PAGESIZE);
+    const long map_size = 3 * page_size;
 
-//     /* Create a memory map that's in our full control (not one used by the allocator). */
-//     p = (char*)mmap(NULL, map_size, PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-//     serverAssert(p != MAP_FAILED);
+    /* Create a memory map that's in our full control (not one used by the allocator). */
+    p = (char*)mmap(NULL, map_size, PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    serverAssert(p != MAP_FAILED);
 
-//     q = p + 4096;
+    q = p + page_size;
 
-//     /* Split the memory map in 3 pages by setting their protection as RO|RW|RO to prevent
-//      * Linux from merging this memory map with adjacent VMAs. */
-//     ret = mprotect(q, 4096, PROT_READ | PROT_WRITE);
-//     serverAssert(!ret);
+    /* Split the memory map in 3 pages by setting their protection as RO|RW|RO to prevent
+     * Linux from merging this memory map with adjacent VMAs. */
+    ret = mprotect(q, page_size, PROT_READ | PROT_WRITE);
+    serverAssert(!ret);
 
-//     /* Write to the page once to make it resident */
-//     *(volatile char*)q = 0;
+    /* Write to the page once to make it resident */
+    *(volatile char*)q = 0;
 
-//     /* Tell the kernel that this page is free to be reclaimed. */
-// #ifndef MADV_FREE
-// #define MADV_FREE 8
-// #endif
-//     ret = madvise(q, 4096, MADV_FREE);
-//     serverAssert(!ret);
+    /* Tell the kernel that this page is free to be reclaimed. */
+#ifndef MADV_FREE
+#define MADV_FREE 8
+#endif
+    ret = madvise(q, page_size, MADV_FREE);
+    serverAssert(!ret);
 
-//     /* Write to the page after being marked for freeing, this is supposed to take
-//      * ownership of that page again. */
-//     *(volatile char*)q = 0;
+    /* Write to the page after being marked for freeing, this is supposed to take
+     * ownership of that page again. */
+    *(volatile char*)q = 0;
 
-//     /* Create a pipe for the child to return the info to the parent. */
-//     ret = pipe(pipefd);
-//     serverAssert(!ret);
+    /* Create a pipe for the child to return the info to the parent. */
+    ret = pipe(pipefd);
+    serverAssert(!ret);
 
-//     /* Fork the process. */
-//     pid = fork();
-//     serverAssert(pid >= 0);
-//     if (!pid) {
-//         /* Child: check if the page is marked as dirty, expecing 4 (kB).
-//          * A value of 0 means the kernel is affected by the bug. */
-//         if (!smapsGetSharedDirty((unsigned long)q))
-//             bug_found = 1;
+    /* Fork the process. */
+    pid = fork();
+    serverAssert(pid >= 0);
+    if (!pid) {
+        /* Child: check if the page is marked as dirty, expecing 4 (kB).
+         * A value of 0 means the kernel is affected by the bug. */
+        if (!smapsGetSharedDirty((unsigned long)q))
+            bug_found = 1;
 
-//         ret = write(pipefd[1], &bug_found, 1);
-//         serverAssert(ret == 1);
+        ret = write(pipefd[1], &bug_found, 1);
+        serverAssert(ret == 1);
 
-//         exit(0);
-//     } else {
-//         /* Read the result from the child. */
-//         ret = read(pipefd[0], &bug_found, 1);
-//         serverAssert(ret == 1);
+        exit(0);
+    } else {
+        /* Read the result from the child. */
+        ret = read(pipefd[0], &bug_found, 1);
+        serverAssert(ret == 1);
 
-//         /* Reap the child pid. */
-//         serverAssert(waitpid(pid, NULL, 0) == pid);
-//     }
+        /* Reap the child pid. */
+        serverAssert(waitpid(pid, NULL, 0) == pid);
+    }
 
-//     /* Cleanup */
-//     ret = close(pipefd[0]);
-//     serverAssert(!ret);
-//     ret = close(pipefd[1]);
-//     serverAssert(!ret);
-//     ret = munmap(p, map_size);
-//     serverAssert(!ret);
+    /* Cleanup */
+    ret = close(pipefd[0]);
+    serverAssert(!ret);
+    ret = close(pipefd[1]);
+    serverAssert(!ret);
+    ret = munmap(p, map_size);
+    serverAssert(!ret);
 
     return bug_found;
 }
