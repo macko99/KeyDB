@@ -6517,7 +6517,7 @@ int linuxMadvFreeForkBugCheck(void) {
     int ret, pipefd[2];
     pid_t pid;
     char *p, *q, bug_found = 0;
-    # mkb1: on 3ds cloud we have a linux kernel compiled with 65536 pagesize, that still might be bug free
+    // mkb1: on 3ds cloud we have a linux kernel compiled with 65536 pagesize, that still might be bug free
     unsigned long page_size = sysconf(_SC_PAGESIZE);
     const long map_size = 3 * page_size;
 
